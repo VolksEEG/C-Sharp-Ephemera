@@ -117,7 +117,7 @@
             this.lblFreq.Text = string.Empty;
             this.lblSecs.Text = string.Empty;
 
-            this.port = new SerialPort("COM" + this.updPortNum.Value, 460800);
+            this.port = new SerialPort("COM" + this.updPortNum.Value, 115200); //460800
             this.port.DataReceived += new SerialDataReceivedEventHandler(this.Port_DataReceived);
             this.btnRun.Enabled = false;
             this.packetBuffer = new SimplePacket[(int)this.updNumPackets.Value];
