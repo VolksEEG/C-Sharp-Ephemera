@@ -14,7 +14,7 @@
         public SimplePacket()
         {
             this.ChannelSet = new int[NumChannels];
-            this.Length = (NumChannels + 2) * 3; // add 2 for start and counter triplets
+            this.Length = (NumChannels + 2) * 2; // 2 bytes per sample per channel, add 2 for start and counter doublets
         }
 
         /// <summary>

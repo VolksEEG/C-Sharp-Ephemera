@@ -11,10 +11,10 @@
     /// </summary>
     public class SimplePacketParser
     {
-        private const int BytesPerSample = 3;
+        private const int BytesPerSample = 2;
         private readonly SimplePacket packet = new SimplePacket();
         private readonly byte[] packetBuffer;
-        private bool foundStartTriplet;
+        private bool foundStartDoublet;
         private int currByteNumInPacket = 0;
         private bool firstPacket;
 
@@ -27,12 +27,12 @@
         }
 
         /// <summary>
-        /// Resets the parser so it starts looking for an 0xFFFFFF to synchronize to.
+        /// Resets the parser so it starts looking for an 0xFFFF to synchronize to.
         /// Only needed at the start at a second or subsequent packet-reading run.
         /// </summary>
         public void Reset()
         {
-            this.foundStartTriplet = false;
+            this.foundStartDoublet = false;
             this.currByteNumInPacket = 0;
         }
 
@@ -46,21 +46,19 @@
         /// <returns>true if a packet has finished being assembled.</returns>
         public bool AddByte(byte inByte, SimplePacket rxPacket)
         {
-            if (!this.foundStartTriplet)
+            if (!this.foundStartDoublet)
             {
                 // Haven't found a 0xFFFFFF packet start flag yet.
                 // so we are not yet synchronized
-                this.packetBuffer[2] = this.packetBuffer[1];
                 this.packetBuffer[1] = this.packetBuffer[0];
                 this.packetBuffer[0] = inByte;
 
                 if (this.packetBuffer[0] == 0xFF
-                    && this.packetBuffer[1] == 0xFF
-                    && this.packetBuffer[2] == 0xFF)
+                    && this.packetBuffer[1] == 0xFF)
                 {
                     // found the packet start flag, so now we know where we are
-                    this.currByteNumInPacket = 3;
-                    this.foundStartTriplet = true;
+                    this.currByteNumInPacket = 2;
+                    this.foundStartDoublet = true;
                     this.firstPacket = true;
                 }
 
@@ -71,7 +69,7 @@
                 // fill packetBuffer
                 if (this.firstPacket)
                 {
-                    this.currByteNumInPacket = 3; // this skips over 0xFFFFFF flag at first 3 bytes in packet
+                    this.currByteNumInPacket = 2; // this skips over 0xFFFFFF flag at first 3 bytes in packet
                     this.firstPacket = false;
                 }
 
@@ -84,7 +82,7 @@
                 else
                 {
                     // we have a complete packet to pass back
-                    this.TripletsToPacket(this.packetBuffer, rxPacket);
+                    this.DoubletsToPacket(this.packetBuffer, rxPacket);
                     this.currByteNumInPacket = 0;
                     return true;
                 }
@@ -95,18 +93,18 @@
         /// Given an array of 24 bytes (8 value triplets),
         /// the values are copied into the 8 channels in the channelSet array.
         /// </summary>
-        /// <param name="triplets">An array of 24 bytes, 8 3-byte integers (lsb first).</param>
+        /// <param name="doublets">An array of 16 bytes, 8 2-byte integers (lsb first).</param>
         /// <param name="packet">The SimplePacket whose channelset values are to be set.</param>
         /// <returns>void.</returns>
-        private SimplePacket TripletsToPacket(byte[] triplets, SimplePacket packet)
+        private SimplePacket DoubletsToPacket(byte[] doublets, SimplePacket packet)
         {
-            packet.Counter = this.ExtractIntFromTriplets(triplets, 1);
+            packet.Counter = this.ExtractIntFromDoublets(doublets, 1, true);
 
             // retrieve the channel values
-            int numDataTriplets = (triplets.Length / 3) - 2; // -1 to account for start and counter triplets
-            for (int i = 0; i < numDataTriplets; i++)
+            int numDataDoublets = (doublets.Length / 2) - 2; // -2 to account for start and counter doublets
+            for (int i = 0; i < numDataDoublets; i++)
             {
-                packet.ChannelSet[i] = this.ExtractIntFromTriplets(triplets, i + 2);
+                packet.ChannelSet[i] = this.ExtractIntFromDoublets(doublets, i + 2, false);
             }
 
             return packet;
@@ -116,16 +114,28 @@
         /// Converts a single triplet in an array of bytes (lsB first) to an integer.
         /// </summary>
         /// <param name="inBuffer">An array of bytes.</param>
-        /// <param name="tripletNumToConvert">The location of the triplet to convert, in triplet units. So "3" means third triplet, starts at 7th byte.</param>
-        /// <returns>The triplet's integer value.</returns>
-        private int ExtractIntFromTriplets(byte[] inBuffer, int tripletNumToConvert)
+        /// <param name="doubletNumToConvert">The location of the doublet to convert, in doublet units. So "3" means third doublet, starts at 7th byte.</param>
+        /// <returns>The doublet's integer value.</returns>
+        private int ExtractIntFromDoublets(byte[] inBuffer, int doubletNumToConvert, bool unsigned)
         {
             int intToReturn = 0;
-            int byteNum = tripletNumToConvert * 3;
-            intToReturn += (int)inBuffer[byteNum];
-            intToReturn += (int)inBuffer[byteNum + 1] * 0x000100;
-            intToReturn += (int)inBuffer[byteNum + 2] * 0x010000;
-            return intToReturn;
+            int byteNum = doubletNumToConvert * 2;
+            if (!unsigned)
+            {
+                short shortVal = BitConverter.ToInt16(inBuffer, byteNum);
+                intToReturn = shortVal;
+                return intToReturn;
+            }
+            else
+            {
+                ushort shortVal = BitConverter.ToUInt16(inBuffer, byteNum);
+                intToReturn = shortVal;
+                return intToReturn;
+            }
+            //intToReturn = i;
+            //intToReturn += (int)inBuffer[byteNum];
+            //intToReturn += (int)inBuffer[byteNum + 1] * 0x000100;
+            //return intToReturn;
         }
     }
 }
